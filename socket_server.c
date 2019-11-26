@@ -224,6 +224,22 @@ socket_server_accept(struct socket_server* ss){
 	return c_fd;
 }
 
+int 
+socket_server_send(struct socket_server* ss,struct socket_message* m){
+	printf("socket send ...\n");
+	struct epoll_event ev;
+	ev.data.fd = m->c_fd;
+	ev.data.ptr = (void*)m;
+	ev.events = EPOLLOUT|EPOLLET;
+	int r = epoll_ctl(ss->ep_id,EPOLL_CTL_MOD,m->c_fd,&ev);
+	if( r < 0){
+		printf("socket send epoll error %d\n",r);
+		return SOCK_ERROR;
+	}
+
+	return SOCK_SEND;
+}
+
 //修改poll
 //增加epoll
 //3:增加聊天室功能
@@ -239,7 +255,7 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
 			if (ss->events[i].events & EPOLLERR || ss->events[i].events & EPOLLHUP )
 			{
 				//客户端异常关闭
-				printf("client connect error\n");
+				printf("client connect error:%d\n",ss->events[i].data.fd);
 				//清理数据结构
 				sock_list_del(ss,ss->events[i].data.fd);
 				close(ss->events[i].data.fd);
@@ -316,6 +332,7 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
 
                 	m->c_fd = ss->events[i].data.fd;
                 	m->buff = buff;
+                	m->buff_size = a;
                 	return SOCK_DATA;
                 }
                 else if(r < a){
@@ -324,16 +341,27 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
                 }
                 
             }
-            else if (ss->events[i].events&EPOLLOUT) //有数据发送,写socket 
+            else if (ss->events[i].events & EPOLLOUT) //有数据发送,写socket 
             {
             	printf("EPOLL EPOLLOUT\n");
-            	 // struct myepoll_data* md = (myepoll_data*)events[i].data.ptr;    //取数据
-              	 //    sockfd = md->fd;
-                 //    send( sockfd, md->ptr, strlen((char*)md->ptr), 0 );        //发送数据
-                 //    ev.data.fd=sockfd;
-                 //    ev.events=EPOLLIN|EPOLLET;
-                 //    epoll_ctl(epfd,EPOLL_CTL_MOD,sockfd,&ev); //修改标识符，等待下一个循环时接收数据
+            	struct socket_message* m = (struct socket_message*)ss->events[i].data.ptr;    //取数据
+          	    int sockfd = m->c_fd;
+          	    int r ;
+          	    r = send(sockfd,&m->buff_size,sizeof(m->buff_size),0);
+          	    if (r < 0)
+          	    {
+          	    	printf("send error\n");
+          	    	return SOCK_ERROR;
+          	    }
+                r = send(sockfd,m->buff, strlen((char*)m->buff), 0);        //发送数据
+                if (r < 0)
+          	    {
+          	    	printf("send error\n");
+          	    	return SOCK_ERROR;
+          	    }
 
+          	    printf("send finish:%d\n",sockfd);
+          	    return SOCK_SEND;
             }
 		}
 	}

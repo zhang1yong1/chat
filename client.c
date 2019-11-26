@@ -66,11 +66,7 @@ main(int argc, char const *argv[]){
     	int nfds = epoll_wait(epid,events,20,500);
     	for (int i =0; i < nfds; ++i )
     	{
-    		// if (events.)
-    		// {
-    		// 	/* code */
-    		// }
-
+            printf("has event :%d\n",nfds);
     		if(events[i].events & EPOLLOUT){ //数据向外发送  //关闭的时候,也会走这个分支
     			printf("EPOLLOUT\n");
     			int a = 10;
@@ -92,9 +88,13 @@ main(int argc, char const *argv[]){
                 }
 
     			printf("write success!\n");
+                struct epoll_event ev;
+                ev.data.fd = sfd;
+                ev.events = EPOLLIN|EPOLLET;//发送事件
+                epoll_ctl(epid,EPOLL_CTL_MOD,sfd,&ev);//事件为读
     		}
     		if (events[i].events & EPOLLIN){ //数据读
-
+                printf("EPOLLIN\n");
     			int n;
     			int a;
     			n = read(sfd,&a,sizeof(a));
@@ -102,9 +102,14 @@ main(int argc, char const *argv[]){
     			{
     				printf("read error\n");
     			}
-    			printf("data:%d\n", a);
-    			ev.data.fd = sfd;
-    			ev.events = EPOLLOUT |EPOLLET;
+                char* buff = (char*)malloc(a+1);
+    			
+                n = read(sfd,buff,a+1);
+                if (n < 0)
+                {
+                    printf("read error\n");
+                }
+                printf("data:%d:%s\n", a,buff);
     		}
     	}
     }
