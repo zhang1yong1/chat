@@ -19,6 +19,7 @@ run(void* data){
 		int r = socket_server_poll(ss,&result);
 		if(r == SOCK_DATA){
 			printf("%d:recv----:%s\n",result.c_fd,(char*)result.buff);
+			
 			continue;
 		}
 		if(r == SOCK_ERROR){
