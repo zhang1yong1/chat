@@ -13,13 +13,13 @@
 void*
 run(void* data){
 	struct socket_server* ss = (struct socket_server*) data;
-	struct socket_message result; //result main文件需要打印结构体内部内容,所以结构体定义必须include,必须放在socket_server.h中
+	struct socket_message* result = (struct socket_message*)MY_MALLOC(sizeof(struct socket_message)) ; //result main文件需要打印结构体内部内容,所以结构体定义必须include,必须放在socket_server.h中
 
 	for(;;){
-		int r = socket_server_poll(ss,&result);
+		int r = socket_server_poll(ss,result);
 		if(r == SOCK_DATA){
-			printf("%d:recv----:%s\n",result.c_fd,(char*)result.buff);
-			
+			printf("%d:recv----:%s\n",result->c_fd,(char*)result->buff);
+			socket_server_send(ss,result);
 			continue;
 		}
 		if(r == SOCK_ERROR){
