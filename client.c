@@ -70,8 +70,7 @@ main(int argc, char const *argv[]){
     		if(events[i].events & EPOLLOUT){ //数据向外发送  //关闭的时候,也会走这个分支
     			printf("EPOLLOUT\n");
     			int a = 10;
-    			r = send(events[i].data.fd,&a,sizeof(a),0); //2次给空的fd发消息,程序就会崩溃
-
+    			r = send(events[i].data.fd,&a,sizeof(a),MSG_WAITALL); //2次给空的fd发消息,程序就会崩溃
 
     			if(r == -1){
     				//关闭socket
@@ -79,7 +78,7 @@ main(int argc, char const *argv[]){
     	 			printf("2:%m\n"),close(sfd),exit(-1);
                 }
                 
-                r = send(events[i].data.fd,"abcdefghig",10,0); //2次给空的fd发消息,程序就会崩溃
+                r = send(events[i].data.fd,"abcdefghig",10,MSG_WAITALL); //2次给空的fd发消息,程序就会崩溃
 
                 if(r == -1){
                     //关闭socket
@@ -104,12 +103,17 @@ main(int argc, char const *argv[]){
     			}
                 char* buff = (char*)malloc(a+1);
     			
-                n = read(sfd,buff,a+1);
+                n = read(sfd,buff,a);
                 if (n < 0)
                 {
                     printf("read error\n");
                 }
                 printf("data:%d:%s\n", a,buff);
+
+                struct epoll_event ev;
+                ev.data.fd = sfd;
+                ev.events = EPOLLOUT|EPOLLET;//发送事件
+                epoll_ctl(epid,EPOLL_CTL_MOD,sfd,&ev);//事件为读
     		}
     	}
     }
