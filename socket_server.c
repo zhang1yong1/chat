@@ -70,6 +70,8 @@ sock_list_add(struct socket_server* ss, struct socket_client* sc){
 	}
 
 	ss->tail->next = sc ;
+
+
 }
 
 struct socket_client*
@@ -111,6 +113,12 @@ sock_list_del(struct socket_server* ss,int cfd){
 		else{
 			ss->head = ss->head->next;
 		}
+		//移除epoll事件
+		if (epoll_ctl(ss->ep_id, EPOLL_CTL_DEL,node->c_fd, NULL) == -1){
+			printf("epoll del error\n");
+		}
+
+		close(node->c_fd);
 		MY_FREE(node->p_data);
 		MY_FREE(node);
 		return;
@@ -119,11 +127,18 @@ sock_list_del(struct socket_server* ss,int cfd){
 	{
 		if(node->next->c_fd == cfd){
 			node->next = node->next->next;
+			//移除epoll事件
+			if (epoll_ctl(ss->ep_id, EPOLL_CTL_DEL,node->c_fd, NULL) == -1){
+				printf("epoll del error\n");
+			}
+
+			close(node->c_fd);
 			MY_FREE(node->p_data);
 			MY_FREE(node);
 			return;
 		}
 	}
+	printf("dell not find\n");
 	return;
 }
 
@@ -227,15 +242,32 @@ socket_server_accept(struct socket_server* ss){
 int 
 socket_server_send(struct socket_server* ss,struct socket_message* m){
 	printf("socket send ...\n");
-	struct epoll_event ev;
-	ev.data.fd = m->c_fd;
-	ev.data.ptr = (void*)m;
-	ev.events = EPOLLOUT|EPOLLET;
-	int r = epoll_ctl(ss->ep_id,EPOLL_CTL_MOD,m->c_fd,&ev);
-	if( r < 0){
-		printf("socket send epoll error %d\n",r);
-		return SOCK_ERROR;
-	}
+	// struct epoll_event ev;
+	// ev.data.fd = m->c_fd;
+	// ev.data.ptr = (void*)m;
+	// ev.events = EPOLLOUT|EPOLLET;
+
+	// int r = epoll_ctl(ss->ep_id,EPOLL_CTL_MOD,m->c_fd,&ev);
+	// if( r < 0){
+	// 	printf("socket send epoll error %d\n",r);
+	// 	return SOCK_ERROR;
+	// }
+	int sockfd = m->c_fd;
+    int r ;
+    r = send(sockfd,&m->buff_size,sizeof(m->buff_size),0);
+    if (r < 0)
+    {
+    	printf("send error\n");
+    	return SOCK_ERROR;
+    }
+    r = send(sockfd,m->buff, strlen((char*)m->buff), 0);        //发送数据
+    if (r < 0)
+    {
+    	printf("send error\n");
+    	return SOCK_ERROR;
+    }
+
+    printf("send finish:%d\n",sockfd);
 
 	return SOCK_SEND;
 }
@@ -249,6 +281,7 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
 
 	for(;;)
 	{
+		memset(ss->events,0,MAX_EVENT*sizeof(struct epoll_event));
 		int nfds = epoll_wait(ss->ep_id,ss->events,MAX_EVENT,500);
 		for (int i = 0; i < nfds; ++i)
 		{
@@ -258,7 +291,6 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
 				printf("client connect error:%d\n",ss->events[i].data.fd);
 				//清理数据结构
 				sock_list_del(ss,ss->events[i].data.fd);
-				close(ss->events[i].data.fd);
                 return SOCK_EXIT;  
 			}
 			else if(ss->events[i].data.fd == ss->fd) //有新的连接
@@ -273,11 +305,11 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
                 printf("new client accept %d\n",connfd);
                 //这里connfd是阻塞的
                 //后面设置成非阻塞
-                if (setNonBlocking(connfd) < 0)
-                {
-                	printf("setNonBlocking error\n");
-                    return SOCK_ERROR;
-                }
+                // if (setNonBlocking(connfd) < 0)
+                // {
+                // 	printf("setNonBlocking error\n");
+                //     return SOCK_ERROR;
+                // }
 
                 ss->ev.data.fd = connfd;
                 ss->ev.events=EPOLLIN|EPOLLET;
@@ -292,23 +324,26 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
             {
             	//读数据,设定,协议
             	//数据前4个字节,是数据大小[因为大多数网络协议,都是4个字节head]
+            	printf("EPOLLIN fd:%d\n", ss->events[i].data.fd);
             	int a ;
                 int n = recv(ss->events[i].data.fd,&a,sizeof(a),MSG_WAITALL);  //读完整的4个字节
+                printf("recv a %d\n",a);
                 //获取完成的4个字节大小后,就接受这个大小的数据包
                 if (n == -1)
                 {
-                 	printf("recv error\n");
+                 	printf("recv error:%d\n",ss->events[i].data.fd);
                  	//清理数据结构
 					sock_list_del(ss,ss->events[i].data.fd);
-					close(ss->events[i].data.fd);
+					printf("sock_list_del\n");
                  	return SOCK_RECVERR;
                 }
 
                 //申请a 数据大小内存
                 char* buff = MY_MALLOC(a+1);
 
-                int r = recv(ss->events[i].data.fd, buff, a+1 ,0);
+                int r = recv(ss->events[i].data.fd, buff, a ,MSG_WAITALL);
                 if(r == -1){
+                	printf("SOCK_RECVERR recv error\n");
                 	return SOCK_RECVERR;
                 }
                 else if (r == 0)
@@ -317,19 +352,10 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
                 	printf("client connect close %d\n",ss->events[i].data.fd);
                 	//清理数据结构
 					sock_list_del(ss,ss->events[i].data.fd);
-
-					close(ss->events[i].data.fd);
                 	return SOCK_CLOSE;
                 }
                 else if(r == a){//数据接收完成
-                	// ev.data.ptr = md;     //md为自定义类型，添加数据
-                	// ev.events=EPOLLOUT|EPOLLET;
-                	// if(epoll_ctl(epfd,EPOLL_CTL_MOD,sockfd,&ev) < 0){//修改标识符，等待下一个循环时发送数据，异步处理的精髓
-                 // 		printf("epoll_ctl EPOLLIN error\n");
-                	// 	return -1;
-                	// }
-                	//printf("server recv %s\n", buff);
-
+                	buff[a] = '\0';
                 	m->c_fd = ss->events[i].data.fd;
                 	m->buff = buff;
                 	m->buff_size = a;
@@ -339,7 +365,6 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
                 	printf("recv data continue:%d : %d\n",r,a);
                 	continue;
                 }
-                
             }
             else if (ss->events[i].events & EPOLLOUT) //有数据发送,写socket 
             {
@@ -361,6 +386,16 @@ socket_server_poll(struct socket_server* ss,struct socket_message* m){
           	    }
 
           	    printf("send finish:%d\n",sockfd);
+          	    struct epoll_event ev;
+				ev.data.fd = sockfd;
+				ev.events = EPOLLIN|EPOLLET;
+
+				r = epoll_ctl(ss->ep_id,EPOLL_CTL_MOD,sockfd,&ev);
+				if( r < 0){
+					printf("poll change error %d\n",r);
+					return SOCK_ERROR;
+				}
+
           	    return SOCK_SEND;
             }
 		}
