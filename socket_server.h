@@ -34,4 +34,6 @@ struct socket_message*  socket_message_create();
 
 int socket_server_send(struct socket_server* ss,struct socket_message* m);
 
+int socket_server_broad(struct socket_server* ss,struct socket_message* m);
+
 #endif

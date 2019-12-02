@@ -6,9 +6,13 @@
 #include <assert.h>
 #include <sys/stat.h>
 #include "socket_server.h"
-
+#include "threadpool.h"
+#include "friend_chat.h"
 
 #define MY_MALLOC malloc
+
+struct thread_pool_t* p = NULL;
+struct socket_server* ss = NULL;
 
 void*
 run(void* data){
@@ -19,10 +23,8 @@ run(void* data){
 		int r = socket_server_poll(ss,result);
 		if(r == SOCK_DATA){
 			printf("%d:recv----:%s\n",result->c_fd,(char*)result->buff);
-			socket_server_send(ss,result);
-
-			free(result->buff);
-			free(result);
+			//socket_server_send(ss,result);
+			friend_chat_server_loop(result);			
 			continue;
 		}
 		if(r == SOCK_SEND){
@@ -46,9 +48,11 @@ run(void* data){
 
 int main(int argc, char const *argv[]){
 	printf("firefly start....\n");
+
+	p = thread_pool_create(3,10,10);
 	pthread_t tid;
 	//pthread_create(&pid,0,run,0);
-	struct socket_server* ss = socket_server_create();
+	ss = socket_server_create();
 	if(ss == NULL){
 		goto firefly_failed;
 	}

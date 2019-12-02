@@ -268,7 +268,37 @@ socket_server_send(struct socket_server* ss,struct socket_message* m){
     }
 
     printf("send finish:%d\n",sockfd);
+    
+	return SOCK_SEND;
+}
 
+int 
+socket_server_broad(struct socket_server* ss,struct socket_message* m){
+	if (ss->head == NULL)
+	{
+		return SOCK_SEND;
+	}
+	struct socket_client* node = NULL;
+	for ( node = ss->head; node != NULL ; node = node->next)
+	{
+		int sockfd = node->c_fd;
+	    int r ;
+	    r = send(sockfd,&m->buff_size,sizeof(m->buff_size),0);
+	    if (r < 0)
+	    {
+	    	printf("send error\n");
+	    	return SOCK_ERROR;
+	    }
+	    r = send(sockfd,m->buff, strlen((char*)m->buff), 0);        //发送数据
+	    if (r < 0)
+	    {
+	    	printf("send error\n");
+	    	return SOCK_ERROR;
+	    }
+	}
+
+	free(m->buff);
+	free(m);
 	return SOCK_SEND;
 }
 
