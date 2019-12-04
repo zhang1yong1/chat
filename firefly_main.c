@@ -76,6 +76,7 @@ int main(int argc, char const *argv[]){
 
 firefly_failed:
 	socket_server_exit(ss);
+	thread_pool_free(p);
 	printf("firefly stop....\n");
 	exit(-1);
 	return 0;
