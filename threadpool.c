@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <unistd.h>
 
-#define DEFAULT_TIME 1            /*默认时间10s*/
+#define DEFAULT_TIME 1             /*默认时间10s 这里设置了时间,后面可以调整*/ 
 #define MIN_WAIT_TASK_NUM 10       /*当任务数超过了它，就该添加新线程了*/
 #define DEFAULT_THREAD_NUM 10      /*每次创建或销毁的线程个数*/
 #define true 1
@@ -294,7 +294,7 @@ thread_pool_thread(void *threadpool)
     while ((pool->queue_size == 0) && (!pool->shutdown))
     { 
        printf("thread 0x%x is waiting \n", (unsigned int)pthread_self());
-       pthread_cond_wait(&(pool->queue_not_empty), &(pool->lock));
+       pthread_cond_wait(&(pool->queue_not_empty), &(pool->lock));//等待有任务到队列中
 
        //判断是否需要清除线程,自杀功能
        if (pool->wait_exit_thr_num > 0)
@@ -327,7 +327,8 @@ thread_pool_thread(void *threadpool)
     pool->queue_size--;
 
     //通知可以添加新任务
-    pthread_cond_broadcast(&(pool->queue_not_full));
+    //每次执行一个任务就通知添加线程,现在可以添加了
+    pthread_cond_broadcast(&(pool->queue_not_full));//这里广播其实没什么用,互斥锁，锁住了添加方法
     
     //释放线程锁
     pthread_mutex_unlock(&(pool->lock));
@@ -359,7 +360,7 @@ thread_pool_add_task(threadpool_t *pool, void *(*function)(void *arg), void *arg
    /*如果队列满了,调用wait阻塞*/
    while ((pool->queue_size == pool->queue_max_size) && (!pool->shutdown))
    {
-      pthread_cond_wait(&(pool->queue_not_full), &(pool->lock));
+      pthread_cond_wait(&(pool->queue_not_full), &(pool->lock));//任务执行一次后,就通知可以添加到队列中
    }
    /*如果线程池处于关闭状态*/
    if (pool->shutdown)
@@ -371,7 +372,7 @@ thread_pool_add_task(threadpool_t *pool, void *(*function)(void *arg), void *arg
    /*清空工作线程的回调函数的参数arg*/
    if (pool->task_queue[pool->queue_rear].arg != NULL)
    {
-      free(pool->task_queue[pool->queue_rear].arg);
+      //free(pool->task_queue[pool->queue_rear].arg);
       pool->task_queue[pool->queue_rear].arg = NULL;
    }
    
