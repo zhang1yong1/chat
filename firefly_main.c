@@ -8,8 +8,13 @@
 #include "socket_server.h"
 #include "threadpool.h"
 #include "friend_chat.h"
+#include "cache_alloc.h"
 
-#define MY_MALLOC malloc
+#define SOCKET_MESSAGE_CAPACITY  1000
+static struct cache_allocer* sm_allocer = NULL;
+
+#define MY_MALLOC(elem_size) cache_alloc(sm_allocer,elem_size)
+#define MY_FREE(elem)   cache_free(sm_allocer,(void*)elem)
 
 struct thread_pool_t* p = NULL;
 struct socket_server* ss = NULL;
@@ -29,27 +34,35 @@ run(void* data){
 		}
 		if(r == SOCK_SEND){
 			free(result->buff);
-			free(result);
+			MY_FREE(result);
 			continue;
 		}
 		if(r == SOCK_ERROR){
 			printf("socket server poll error\n");
 			free(result->buff);
-			free(result);
+			MY_FREE(result);
 			continue;
 		}
 		if(r == 0){
 			free(result->buff);
-			free(result);
+			MY_FREE(result);
 			continue;
 		}
 	}
 }
 
+void 
+init_firefly_allocer(){
+	if (sm_allocer == NULL)
+	{
+		sm_allocer = create_cache_alloc(SOCKET_MESSAGE_CAPACITY,sizeof(struct socket_message));
+	}
+}
+
 int main(int argc, char const *argv[]){
 	printf("firefly start....\n");
-
-	p = thread_pool_create(3,10,10);
+	init_firefly_allocer();
+	p = thread_pool_create(1,10,10);
 	pthread_t tid;
 	//pthread_create(&pid,0,run,0);
 	ss = socket_server_create();

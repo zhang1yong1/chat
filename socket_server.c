@@ -11,6 +11,9 @@
 #include <sys/epoll.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include "cache_alloc.h"
+
+
 
 #define MY_MALLOC  malloc
 #define MY_FREE    free
@@ -297,8 +300,8 @@ socket_server_broad(struct socket_server* ss,struct socket_message* m){
 	    }
 	}
 
-	free(m->buff);
-	free(m);
+	// free(m->buff);
+	// free(m);
 	return SOCK_SEND;
 }
 
